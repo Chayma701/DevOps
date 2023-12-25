@@ -1,0 +1,22 @@
+name:
+  CI
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+jobs:
+  - build:
+    runs-on:
+      ubuntu-latest
+    steps:
+      - name: Run docker-compose
+        run: docker-compose up -d
+      - name: Wait for Jenkins to start
+        run: docker-compose logs -f jenkins | grep -q "Jenkins is fully up and running"
+      - name: Wait for SonarQube to start
+        run: docker-compose logs -f sonarqube | grep -q "SonarQube is up"
+      - name: Wait for Nexus to start
+        run: docker-compose logs -f nexus | grep -q "Started Sonatype Nexus OSS"
