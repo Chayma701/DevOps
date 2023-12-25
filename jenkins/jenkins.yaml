@@ -1,0 +1,8 @@
+jenkins:
+  systemMessage: "Dockerized Jenkins with Configuration as Code"
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "admin"
