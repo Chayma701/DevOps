@@ -1,33 +1,35 @@
-  on:
-    push:
-      branches:
-        - master
-    pull_request:
-      branches:
-        - master
-  jobs:
-    build:
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout
-          uses: actions/checkout@v2
-        - name: Run docker-compose
-          run: docker-compose up -d
-        - name: Wait for Jenkins to start
-          run: docker-compose logs -f jenkins | grep -q "Jenkins is fully up and running"
-        - name: Wait for SonarQube to start
-          run: docker-compose logs -f sonarqube | grep -q "SonarQube is up"
-        - name: Wait for Nexus to start
-          run: docker-compose logs -f nexus | grep -q "Started Sonatype Nexus OSS"
-        - name: Run tests
-          run: docker-compose exec jenkins bash -c "cd /var/jenkins_home/workspace/CI && mvn clean test"
-        - name: Run SonarQube analysis
-          run: docker-compose exec jenkins bash -c "cd /var/jenkins_home/workspace/CI && mvn sonar:sonar -Dsonar.projectKey=CI"
-        - name: Run Nexus IQ analysis
-          run: docker-compose exec jenkins bash -c "cd /var/jenkins_home/workspace/CI && mvn nexus-iq:scan -Dnexus-iq.applicationId=CI"
-        - name: Run Nexus Repository Manager analysis
-          run: docker-compose exec jenkins bash -c "cd /var/jenkins_home/workspace/CI && mvn nexus-staging:release -DnexusUrl=http://nexus:8081 -DserverId=nexus -DnexusUsername=admin -DnexusPassword=admin123 -DnexusStagingDescription='CI release'"
-        - name: Run Nexus Repository Manager cleanup
-          run: docker-compose exec jenkins bash -c "cd /var/jenkins_home/workspace/CI && mvn nexus-staging:drop -DnexusUrl=http://nexus:8081 -DserverId=nexus -DnexusUsername=admin -DnexusPassword=admin123"
-        - name: Run Nexus Repository Manager promotion
-          run: docker-compose exec jenkins bash -c "cd /var/jenkins_home/workspace/CI && mvn nexus-staging:promote -DnexusUrl=http://nexus:8081 -DserverId=nexus -DnexusUsername=admin -Dnexus
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Deploy Frontend
+      run: |
+        cd ../../client
+        docker-compose -f deployment.yml up -d
+      env:
+        DOCKER_COMPOSE_VERSION: 3
+
+  deploy-backend:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Deploy Backend
+      run: |
+        cd ../../server
+        docker-compose -f deployment.yml up -d
+      env:
+        DOCKER_COMPOSE_VERSION: 3

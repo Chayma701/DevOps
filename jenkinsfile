@@ -1,0 +1,117 @@
+pipeline {
+    environment {
+        registry = "chayma701/DevOps"
+        registryCredential = 'chayma701'
+        sonarqubeImage = 'sonarqube:9.0-community'
+        nexusImage = 'sonatype/nexus3:3.38.0'
+        dockerImageSpring = "${registry}/spring-boot-app:$BUILD_NUMBER"
+        dockerImageAngular = "${registry}/angular-app:$BUILD_NUMBER"
+        dockerImagePostgres = "${registry}/postgres-db:$BUILD_NUMBER"
+    }
+    agent any
+    
+    stages {
+        stage('Cloning Project from Git') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Chayma701/DevOps'
+            }
+        }
+        
+        stage("Clean") {
+            steps {
+                sh "mvn clean"
+            }
+        }
+
+        stage("Unit tests") {
+            steps {
+                sh "mvn test"
+            }
+        }
+        
+        stage("Test Sonar") {
+            steps {
+                script {
+                    docker.run("-v ${WORKSPACE}:/usr/src -w /usr/src ${sonarqubeImage} mvn sonar:sonar")
+                }
+            }
+        }
+        
+        stage("Packaging") {
+            steps {
+                sh "mvn package"
+            }
+        }
+
+        stage('Building Spring Boot image') {
+            steps {
+                script {
+                    sh "docker version"
+                    dockerImageSpring = docker.build dockerImageSpring
+                }
+            }
+        }
+
+        stage('Building Angular app image') {
+            steps {
+                script {
+                    sh "docker build -t ${dockerImageAngular} -f client/Dockerfile ./client"
+                }
+            }
+        }
+
+        stage('Building PostgreSQL image') {
+            steps {
+                script {
+                    sh "docker build -t ${dockerImagePostgres} -f server/Dockerfile ./server"
+                }
+            }
+        }
+
+        stage('Deploy Spring Boot image') {
+            steps {
+                script {
+                    docker.withRegistry('', registryCredential) {
+                        dockerImageSpring.push()
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Angular app image') {
+            steps {
+                script {
+                    docker.withRegistry('', registryCredential) {
+                        dockerImageAngular.push()
+                    }
+                }
+            }
+        }
+
+        stage('Deploy PostgreSQL image') {
+            steps {
+                script {
+                    docker.withRegistry('', registryCredential) {
+                        dockerImagePostgres.push()
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Nexus') {
+            steps {
+                script {
+                    sh "docker run --rm -v ${WORKSPACE}:/workspace -w /workspace maven:3.8.1-jdk-11 mvn deploy -Dmaven.test.skip=true"
+                }
+            }
+        }
+
+        stage('Cleaning up') {
+            steps {
+                sh "docker rmi ${dockerImageSpring}"
+                sh "docker rmi ${dockerImageAngular}"
+                sh "docker rmi ${dockerImagePostgres}"
+            }
+        }
+    }
+}

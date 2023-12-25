@@ -3,20 +3,35 @@ name: CI
 on:
   push:
     branches:
-      - master
-  pull_request:
-    branches:
-      - master
+      - main
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
+
     steps:
-      - name: Run docker-compose
-        run: docker-compose up -d
-      - name: Wait for Jenkins to start
-        run: docker-compose logs -f jenkins | grep -q "Jenkins is fully up and running"
-      - name: Wait for SonarQube to start
-        run: docker-compose logs -f sonarqube | grep -q "SonarQube is up"
-      - name: Wait for Nexus to start
-        run: docker-compose logs -f nexus | grep -q "Started Sonatype Nexus OSS"
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Docker
+      uses: actions/setup-docker@v2
+      with:
+        dockerfile: ./jenkins/Dockerfile
+
+    - name: Build and push Jenkins image
+      run: |
+        docker build -t chayma701/jenkins:latest ./jenkins
+        docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_PASSWORD }}
+        docker push chayma701/jenkins:latest
+
+    - name: Run Jenkins pipeline
+      run: |
+        docker run -v /var/run/docker.sock:/var/run/docker.sock \
+                   -v $(pwd):/workspace \
+                   -e BUILD_NUMBER=$GITHUB_RUN_NUMBER \
+                   chayma701/jenkins:latest
+      env:
+        GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}

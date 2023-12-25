@@ -1,70 +1,26 @@
-#version: '3'
-#services:
-#  jenkins:
-#    build:
-#      context: ./jenkins
-#    ports:
-#      - "8080:8080"
-#    volumes:
-#      - jenkins_home:/var/jenkins_home
-#      - /var/run/docker.sock:/var/run/docker.sock  # Mount Docker socket from host to Jenkins container
-#    networks:
-#      - mynetwork
-#
-#  sonarqube:
-#    image: sonarqube:9.0-community
-#    ports:
-#      - "9000:9000"
-#    networks:
-#      - mynetwork
-#
-#  nexus:
-#    image: sonatype/nexus3:3.38.0
-#    ports:
-#      - "8081:8081"
-#    volumes:
-#      - nexus_data:/nexus-data
-#    networks:
-#      - mynetwork
-#
-#  angular-app:
-#    build:
-#      context: ./client
-#    ports:
-#      - "4200:4200"
-#    networks:
-#      - mynetwork
-#
-#  spring-boot-app:
-#    build:
-#      context: ./server
-#    ports:
-#      - "8082:8080"
-#    networks:
-#      - mynetwork
-#
-#networks:
-#  mynetwork:
-#
-#volumes:
-#  jenkins_home:
-#  nexus_data:
-
 version: "3"
 
 services:
   sonarqube:
-      image: sonarqube:9.0-community
-      ports:
-        - "9000:9000"
-      networks:
-        - mynetwork
+    image: sonarqube:9.0-community
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+    networks:
+      - mynetwork
+
   jenkins:
-    build: .
+    build: ./jenkins
+    ports:
+      - "8080:8080"
     environment:
       - DOCKER_HOST=tcp://localhost:2375
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - jenkins_home:/var/jenkins_home
+    networks:
+      - mynetwork
 
   nexus:
     image: sonatype/nexus3:3.38.0
@@ -74,13 +30,16 @@ services:
       - nexus_data:/nexus-data
     networks:
       - mynetwork
+
   angular-app:
-      build:
-        context: ./client
-      ports:
-        - "4200:4200"
-      networks:
-        - mynetwork
+    build:
+      context: ./client
+    ports:
+      - "4200:4200"
+    networks:
+      - mynetwork
+    container_name: angular-app  
+
   postgresdb:
     image: postgres
     restart: unless-stopped
@@ -89,32 +48,41 @@ services:
       - POSTGRES_USER=$POSTGRESDB_USER
       - POSTGRES_PASSWORD=$POSTGRESDB_ROOT_PASSWORD
       - POSTGRES_DB=$POSTGRESDB_DATABASE
+    container_name: postgresdb  
     ports:
       - $POSTGRESDB_LOCAL_PORT:$POSTGRESDB_DOCKER_PORT
     volumes:
       - db:/var/lib/postgres
+
   app:
     depends_on:
       - postgresdb
     build: ./server
     restart: on-failure
     env_file: .env
+    container_name: app
     ports:
       - "$SPRING_LOCAL_PORT:$SPRING_DOCKER_PORT"
     environment:
       SPRING_APPLICATION_JSON: '{
-        "spring.datasource.url"  : "jdbc:postgresql://postgresdb:$POSTGRESDB_DOCKER_PORT/$POSTGRESDB_DATABASE",
-        "spring.datasource.username" : "$POSTGRESDB_USER",
-        "spring.datasource.password" : "$POSTGRESDB_ROOT_PASSWORD",
-        "spring.jpa.properties.hibernate.dialect" : "org.hibernate.dialect.PostgreSQLDialect",
-        "spring.jpa.hibernate.ddl-auto" : "update"
-      }'
-    volumes:
+        "spring.datasource.url": "jdbc:postgresql://postgresdb:$POSTGRESDB_DOCKER_PORT/$POSTGRESDB_DATABASE",
+        "spring.datasource.username": "$POSTGRESDB_USER",
+        "spring.datasource.password": "$POSTGRESDB_ROOT_PASSWORD",
+        "spring.jpa.properties.hibernate.dialect": "org.hibernate.dialect.PostgreSQLDialect",
+        "spring.jpa.hibernate.ddl-auto": "update"}'
+      volumes:
       - .m2:/root/.m2
     stdin_open: true
     tty: true
+    networks:
+      - mynetwork  
+    
 
 volumes:
   db:
+  nexus_data:
+  sonarqube_data:
+  jenkins_home:
 
-
+networks:
+  mynetwork:
