@@ -14,8 +14,9 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
 
-    - name: Set up Docker
-      uses: actions/setup-docker@v2
+    - name: setup-docker
+      uses: docker-practice/actions-setup-docker@v1
+            
       with:
         dockerfile: ./jenkins/Dockerfile
 
